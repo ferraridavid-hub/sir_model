@@ -34,6 +34,11 @@ public:
     _I = I;
     _R = R;
   }
+
+  // set_params: setting paramaters of population from vector
+  void set_params(std :: vector <double> v) {
+    set_params(v[0], v[1], v[2]);
+  }
 };
 
 #endif
