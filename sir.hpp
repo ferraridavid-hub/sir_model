@@ -1,80 +1,75 @@
-#include <iostream>
-#include <cstdio>
+#ifndef SIR_HPP
+#define SIR_HPP
 
-#define EPSILON 0.001
-
-class Population {
-  float _N; // once set, it is constant
-  float _S;
-  float _I;
-  float _R;
-
-public:
-  Population() { _N = _S = _I = _R = 0; }
-  Population(float S, float I, float R) {
-    _S = S;
-    _I = I;
-    _R = R;
-    _N = S + I + R;
-  }
-
-  float get_N() const { return _N; }
-
-  float get_S() const { return _S; }
-
-  float get_I() const { return _I; }
-
-  float get_R() const { return _R; }
-
-  void set_params(float S, float I, float R) {
-    if (fabs(S + I + R - _N) < EPSILON) {
-      _S = S;
-      _I = I;
-      _R = R;
-    } else {
-      std :: cerr << "error\n";
-    }
-  }
-};
+#include "Population.hpp"
+#include <vector>
 
 class Sir_system {
-  float _beta;
-  float _gamma;
+  double _beta;
+  double _gamma;
   Population _p;
-  int _t; // simulation duration in days
+
+  // eval_field: helper function to evaluate the field on the
+  // population p used for Runge_Kutta algorithm
+  std ::vector<double> eval_field(std ::vector<double> v) const {
+    double N = v[0] + v[1] + v[2];
+    double beta_term = _beta * v[0] * v[1] / N;
+    double gamma_term = _gamma * v[1];
+
+    double new_s = -beta_term;
+    double new_i = beta_term - gamma_term;
+    double new_r = gamma_term;
+
+    return std::vector<double>{new_s, new_i, new_r};
+  }
 
 public:
-  Sir_system(float beta, float gamma, Population const &p, int t) {
+  Sir_system(double beta, double gamma, Population const &p) {
     _beta = beta;
     _gamma = gamma;
     _p = p;
-    _t = t;
   }
 
+  double get_beta() const { return _beta; }
+  double get_gamma() const { return _gamma; }
   Population get_pop() const { return _p; }
 
-  // tstep: simulate one step of the evolving system
+  // tstep: simulate a step of one day of the evolving system with Runge_Kutta
+  // algorithm
   void tstep() {
-    float beta_term = _beta * _p.get_S() * _p.get_I() / _p.get_N();
-    float gamma_term = _gamma * _p.get_I();
+    Population temp{_p};
+    std ::vector<double> res(3);
+    std ::vector<double> k(3);
 
-    float next_S = _p.get_S() - beta_term;
-    float next_I = _p.get_I() + beta_term - gamma_term;
-    float next_R = _p.get_R() + gamma_term;
+    // computing k1
+    k = eval_field(_p.get_params());
+    temp.set_params(_p.getS() + k[0] / 2, _p.getI() + k[1] / 2,
+                    _p.getR() + k[2] / 2);
+    for (int i = 0; i < 3; i++)
+      res[i] = k[i] / 6;
 
-    _p.set_params(next_S, next_I, next_R);
+    // computing k2
+    k = eval_field(temp.get_params());
+    temp.set_params(_p.getS() + k[0] / 2, _p.getI() + k[1] / 2,
+                    _p.getR() + k[2] / 2);
+    for (int i = 0; i < 3; i++)
+      res[i] += k[i] / 3;
+
+    // computing k3
+    k = eval_field(temp.get_params());
+    temp.set_params(_p.getS() + k[0], _p.getI() + k[1], _p.getR() + k[2]);
+    for (int i = 0; i < 3; i++)
+      res[i] += k[i] / 3;
+
+    // computing k4
+    k = eval_field(temp.get_params());
+    for (int i = 0; i < 3; i++)
+      res[i] += k[i] / 6;
+
+    // set new params of population after one day
+    _p.set_params(_p.getS() + res[0], _p.getI() + res[1], _p.getR() + res[2]);
   }
 
-  // evolution: simulate a complete system evolution of duration t
-  void evolution() {
-    printf("Day\tS\tI\tR\n");
-    for (int i = 0; i < _t; i++){
-      print(i);
-      tstep();
-    }
-  }
-
-  void print(int day) {
-    printf("%3d\t%5.0f\t%5.0f\t%5.0f\n", day, _p.get_S(), _p.get_I(), _p.get_R());
-  }
 };
+
+#endif
